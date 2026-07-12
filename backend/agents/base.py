@@ -38,13 +38,22 @@ class SupportAgent(BaseAgent):
 
 class AgentManager:
     def __init__(self):
+        from agents.voice_agent import VoiceAgent
         self.agents = {
             "scout": ScoutAgent(),
             "sales": SalesAgent(),
-            "support": SupportAgent()
+            "support": SupportAgent(),
+            "voice": VoiceAgent(),
         }
+        self._voice_agent: VoiceAgent | None = None
 
     async def route_request(self, agent_type: str, context: Dict[str, Any], input_data: str) -> str:
         if agent_type in self.agents:
             return await self.agents[agent_type].process(context, input_data)
         return "Agent not found."
+
+    def get_voice_agent(self) -> "VoiceAgent":
+        if self._voice_agent is None:
+            from agents.voice_agent import VoiceAgent
+            self._voice_agent = VoiceAgent()
+        return self._voice_agent

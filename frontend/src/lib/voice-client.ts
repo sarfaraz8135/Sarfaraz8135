@@ -39,11 +39,24 @@ export class VoiceClient {
   private url: string;
 
   constructor(
-    url: string = `ws://${typeof window !== "undefined" ? window.location.hostname : "localhost"}:8000/ws/voice`,
+    url?: string,
     events: VoiceClientEvents = {}
   ) {
-    this.url = url;
+    this.url = url ?? VoiceClient.defaultUrl();
     this.events = events;
+  }
+
+  /** Build the default WebSocket URL from the current page context. */
+  static defaultUrl(): string {
+    const protocol = typeof window !== "undefined" && window.location.protocol === "https:" ? "wss:" : "ws:";
+    const host = typeof window !== "undefined" ? window.location.hostname : "localhost";
+    // Allow override via NEXT_PUBLIC_BACKEND_PORT env var, fallback to 8000
+    const port =
+      (typeof process !== "undefined" && (
+        (typeof process !== "undefined" && (process as any).env?.NEXT_PUBLIC_BACKEND_PORT)
+      )) ||
+      "8000";
+    return `${protocol}//${host}:${port}/ws/voice`;
   }
 
   get status(): VoiceClientStatus {

@@ -45,45 +45,40 @@ export default function VoiceAgent() {
   const audioCtxRef = useRef<AudioContext | null>(null);
   const transcriptEndRef = useRef<HTMLDivElement | null>(null);
 
-  // ---- auto-scroll ----
-  useEffect(() => {
-    transcriptEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [transcripts]);
+  // ---- play TTS audio (defined first so handleResponse can use it) ----
+  const playAudio = useCallback((b64: string) => {
+    try {
+      const arrayBuffer = base64ToArrayBuffer(b64);
 
-  // ---- initialise recorder + WS once ----
-  useEffect(() => {
-    // Recorder
-    const recorder = new AudioRecorder({
-      onStatusChange: (s) => {
-        setRecStatus(s);
-        if (s === "error") setError("Microphone issue detected");
-      },
-      onDataAvailable: (b64) => {
-        // Send to server for processing
-        clientRef.current?.sendAudio(b64);
-      },
-      onError: (e) => setError(e),
-    });
-    recorderRef.current = recorder;
+      // AudioContext must be created/resumed from a user gesture.
+      // The first mic click initialises it; subsequent calls reuse it.
+      const ctx = audioCtxRef.current;
+      if (!ctx) {
+        // No AudioContext available — skip audio, text is already displayed
+        return;
+      }
 
-    // WS Client
-    const client = new VoiceClient(undefined, {
-      onStatusChange: (s) => setWsStatus(s),
-      onResponse: handleResponse,
-      onError: (e) => setError(e),
-    });
-    clientRef.current = client;
-    client.connect();
+      // Safari / older Chrome may need resume()
+      if (ctx.state === "suspended") {
+        ctx.resume();
+      }
 
-    return () => {
-      recorder.destroy();
-      client.disconnect();
-      audioCtxRef.current?.close();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+      ctx.decodeAudioData(arrayBuffer.slice(0), (buffer) => {
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+        source.connect(ctx.destination);
+        setIsSpeaking(true);
+        source.start(0);
+        source.onended = () => setIsSpeaking(false);
+      }, () => {
+        // decode error — just show text, that's fine
+      });
+    } catch {
+      // If audio playback fails, we still have the text
+    }
   }, []);
 
-  // ---- handle server response ----
+  // ---- handle server response (defined after playAudio) ----
   const handleResponse = useCallback((resp: VoiceResponse) => {
     if (resp.error) {
       setError(resp.error);
@@ -102,43 +97,67 @@ export default function VoiceAgent() {
         playAudio(resp.audio_base64);
       }
     }
-  }, []);
+  }, [playAudio]);
 
-  // ---- play TTS audio ----
-  const playAudio = useCallback((b64: string) => {
-    try {
-      const arrayBuffer = base64ToArrayBuffer(b64);
+  // ---- auto-scroll ----
+  useEffect(() => {
+    transcriptEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [transcripts]);
 
-      if (!audioCtxRef.current) {
-        audioCtxRef.current = new AudioContext();
-      }
-      const ctx = audioCtxRef.current;
+  // ---- initialise recorder + WS once ----
+  useEffect(() => {
+    // Recorder
+    const recorder = new AudioRecorder({
+      onStatusChange: (s) => {
+        setRecStatus(s);
+        if (s === "error") setError("Microphone issue detected");
+      },
+      onDataAvailable: (b64) => {
+        clientRef.current?.sendAudio(b64);
+      },
+      onError: (e) => setError(e),
+    });
+    recorderRef.current = recorder;
 
-      ctx.decodeAudioData(arrayBuffer.slice(0), (buffer) => {
-        const source = ctx.createBufferSource();
-        source.buffer = buffer;
-        source.connect(ctx.destination);
-        setIsSpeaking(true);
-        source.start(0);
-        source.onended = () => setIsSpeaking(false);
-      });
-    } catch {
-      // If audio playback fails, we still have the text
-    }
+    // WS Client — derive URL from current page so it works on any host/port
+    const protocol = typeof window !== "undefined" && window.location.protocol === "https:" ? "wss:" : "ws:";
+    const host = typeof window !== "undefined" ? window.location.hostname : "localhost";
+    const wsPort = "8000"; // backend default port
+    const wsUrl = `${protocol}//${host}:${wsPort}/ws/voice`;
+
+    const client = new VoiceClient(wsUrl, {
+      onStatusChange: (s) => setWsStatus(s),
+      onResponse: handleResponse,
+      onError: (e) => setError(e),
+    });
+    clientRef.current = client;
+    client.connect();
+
+    return () => {
+      recorder.destroy();
+      client.disconnect();
+      audioCtxRef.current?.close();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ---- toggle mic ----
   const toggleMic = useCallback(() => {
     setError(null);
-    recorderRef.current?.toggle();
-  }, []);
 
-  // ---- send text manually (fallback) ----
-  const sendText = useCallback((text: string) => {
-    if (!text.trim()) return;
-    setError(null);
-    setTranscripts((prev) => [...prev, { role: "user", text }]);
-    clientRef.current?.sendText(text);
+    // Create AudioContext on first user gesture (browser requirement)
+    if (!audioCtxRef.current) {
+      try {
+        const ctx = new AudioContext();
+        audioCtxRef.current = ctx;
+      } catch {
+        // Audio not available — still works with text
+      }
+    } else if (audioCtxRef.current.state === "suspended") {
+      audioCtxRef.current.resume();
+    }
+
+    recorderRef.current?.toggle();
   }, []);
 
   // ---- status helpers ----
@@ -316,3 +335,4 @@ function TrashIcon({ className }: { className?: string }) {
     </svg>
   );
 }
+

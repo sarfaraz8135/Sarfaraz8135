@@ -8,8 +8,8 @@ Designed to work via WebSocket for streaming interactions.
 from typing import Dict, Any, Optional
 from enum import Enum
 
-from backend.agents.base import BaseAgent, AgentManager
-from backend.services.speech import (
+from agents.base import BaseAgent, AgentManager
+from services.speech import (
     transcribe_audio,
     synthesize_speech,
     STTEngine,
@@ -114,7 +114,7 @@ class VoiceAgent(BaseAgent):
 
         self._state = VoiceState.IDLE
 
-        from backend.services.speech import audio_to_base64
+        from services.speech import audio_to_base64
         return {
             "transcript": transcript,
             "text_response": text_response,
@@ -125,7 +125,7 @@ class VoiceAgent(BaseAgent):
     async def text_to_speech_only(self, text: str) -> dict:
         """Convenience: TTS without the STT step."""
         audio_bytes = await synthesize_speech(text, engine=self._tts_engine, voice=self._voice_id)
-        from backend.services.speech import audio_to_base64
+        from services.speech import audio_to_base64
         return {
             "text": text,
             "audio_base64": audio_to_base64(audio_bytes),

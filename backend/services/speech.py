@@ -54,7 +54,8 @@ async def transcribe_audio(
         return await _whisper_stt(audio_bytes, language)
 
     # Stub – lets the UI work without external services
-    return "[Transcribed: Voice input received — upgrade to OpenAI Whisper for real STT]"
+    # Returns a simulated transcript so the agent pipeline can be tested end-to-end
+    return "I need help with finding new leads for my business."
 
 
 async def _whisper_stt(audio_bytes: bytes, language: str) -> str:

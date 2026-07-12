@@ -38,7 +38,7 @@ class SupportAgent(BaseAgent):
 
 class AgentManager:
     def __init__(self):
-        from backend.agents.voice_agent import VoiceAgent
+        from agents.voice_agent import VoiceAgent
         self.agents = {
             "scout": ScoutAgent(),
             "sales": SalesAgent(),
@@ -54,6 +54,6 @@ class AgentManager:
 
     def get_voice_agent(self) -> "VoiceAgent":
         if self._voice_agent is None:
-            from backend.agents.voice_agent import VoiceAgent
+            from agents.voice_agent import VoiceAgent
             self._voice_agent = VoiceAgent()
         return self._voice_agent

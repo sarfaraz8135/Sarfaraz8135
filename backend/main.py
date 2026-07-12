@@ -58,8 +58,8 @@ async def websocket_endpoint(websocket: WebSocket):
 # ------------------------------------------------------------------
 # Voice Agent — singleton shared across routes
 # ------------------------------------------------------------------
-from backend.agents.base import AgentManager
-from backend.services.speech import synthesize_speech, transcribe_audio, STTEngine, TTSEngine
+from agents.base import AgentManager
+from services.speech import synthesize_speech, transcribe_audio, STTEngine, TTSEngine, audio_to_base64
 
 _agent_manager: AgentManager | None = None
 
@@ -108,7 +108,6 @@ async def voice_process(file: UploadFile = File(...), agent: Optional[str] = "au
 async def voice_tts(text: str, voice: Optional[str] = "alloy"):
     """Simple TTS — returns base64 audio."""
     audio = await synthesize_speech(text, voice=voice)
-    from backend.services.speech import audio_to_base64
     return {"audio_base64": audio_to_base64(audio)}
 
 
